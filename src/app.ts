@@ -30,8 +30,8 @@ app.use('/api', router);
 ///third OAuth
 const CLIENT_ID = '8388cb899ba93a909f8f';
 const CLIENT_SECRET = '1adf1feede046e53cdddd514599539afc54aeefe';
-const REDIRECT_URI = 'http://localhost:3000/callback';
-app.get('/', (req, res) => {
+const REDIRECT_URI = 'http://localhost:3000/auth/github/callback';
+app.get('/auth/github', (req, res) => {
     const state = 'SOME_STATE';
     const scope = 'user';
   
@@ -40,11 +40,9 @@ app.get('/', (req, res) => {
     res.redirect(githubAuthUrl);
   });
   
-  app.get('/callback', async (req, res) => {
+  app.get('/auth/github/callback', async (req, res) => {
     const code = req.query.code;
     const state = req.query.state;
-    console.log(state)
-    console.log(code)
   
     const response = await axios.post('https://github.com/login/oauth/access_token', {
       client_id: CLIENT_ID,
