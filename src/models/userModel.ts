@@ -1,18 +1,19 @@
+import { Document, Schema, Model, model,ObjectId } from "mongoose";
 
-import { Document, Model, model, Schema } from 'mongoose';
-
-export interface IUser extends Document {
-  name: string;
-  email: string;
-  password: string;
+export interface IUserModel extends Document {  
+  username?: string,
+  email?: string,  
+  githubId?: string; 
 }
 
-const userSchema: Schema = new Schema({
-  name: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
+const UserSchema = new Schema({ 
+  username: { type: String,unique:false   },
+  email: { type: String,unique:false  }, 
+  githubId: { type: String,unique:false }, 
 });
 
-const UserModel: Model<IUser> = model<IUser>('User', userSchema);
+const UserModel = model("User", UserSchema);
 
-export default UserModel;
+export {
+  UserModel
+};

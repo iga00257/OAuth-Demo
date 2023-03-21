@@ -1,10 +1,18 @@
 import express from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
-import router from './routes/userRoutes';
 import mongoose, { ConnectOptions } from 'mongoose';
 import axios from 'axios';
 import { stat } from 'fs';
+import { Strategy as GitHubStrategy } from 'passport-github';
+import authRoutes from './routes/auth';
+import passport from 'passport';
+import session from "express-session";
+import userRoutes from './routes/user';
+import { UserModel,IUserModel } from "./models/userModel";
+import { isLoggedIn } from './middlewares/auth';
+
+ 
 
 const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017';
 const app = express();
@@ -24,51 +32,81 @@ const PORT = 3000;
 app.use(bodyParser.json());
 app.use(cors());
 
-// Routes
-app.use('/api', router);
-
 ///third OAuth
+
 const CLIENT_ID = '8388cb899ba93a909f8f';
 const CLIENT_SECRET = '1adf1feede046e53cdddd514599539afc54aeefe';
 const REDIRECT_URI = 'http://localhost:3000/auth/github/callback';
-app.get('/auth/github', (req, res) => {
-    const state = 'SOME_STATE';
-    const scope = 'user';
-  
-    const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}&state=${state}&scope=${scope}`;
-  
-    res.redirect(githubAuthUrl);
-  });
-  
-  app.get('/auth/github/callback', async (req, res) => {
-    const code = req.query.code;
-    const state = req.query.state;
-  
-    const response = await axios.post('https://github.com/login/oauth/access_token', {
-      client_id: CLIENT_ID,
-      client_secret: CLIENT_SECRET,
-      code,
-      redirect_uri: REDIRECT_URI,
-      state
-    }, {
-      headers: {
-        Accept: 'application/json'
+
+
+// 序列化用戶
+passport.serializeUser(function(user, done) {
+  done(null, user);
+});
+
+// 反序列化用戶
+passport.deserializeUser(function(user, done) {
+  done(null, user);
+});
+
+
+// Passport 配置
+passport.use(
+  new GitHubStrategy(
+    {
+      clientID: CLIENT_ID,
+      clientSecret: CLIENT_SECRET,
+      callbackURL: '/auth/github/callback',
+    },
+    async (accessToken, refreshToken, profile:any, cb) => {
+      try {
+        // console.log(accessToken)
+        // console.log(refreshToken)
+        // console.log(profile)
+        let user: IUserModel | null = await UserModel.findOne({ githubId: profile.id });
+        console.log(user)
+        if (!user) {
+          user = await UserModel.create({
+            username: profile.username,
+            email: profile._json.email,
+            password: '',
+            githubId: profile.id,
+          });
+        }
+        return cb(null, user);
+      } catch (error) {
+        return cb(error, null);
       }
-    });
-  
-    const accessToken = response.data.access_token;
-  
-    const userResponse = await axios.get('https://api.github.com/user', {
-      headers: {
-        Authorization: `Bearer ${accessToken}`
-      }
-    });
-  
-    const userInfo = userResponse.data;
-  
-    // 在這裡將取得的使用者資訊傳回前端顯示
-    res.send(userInfo);
+    },
+  ),
+);
+
+app.use(session({
+  secret: "1adf1feede046e53cdddd514599539afc54aeefe",
+  resave: false,
+  saveUninitialized: false
+}));
+
+// 設置登出路由
+app.post('/logout', function(req, res, next) {
+  req.logout(function(err) {
+    if (err) { return next(err); }
+    res.redirect('/');
   });
+});
+
+
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+// 註冊路由
+app.use('/auth', authRoutes);
+app.use('/api/users',userRoutes)
+app.use('/',(req,res)=>{
+  res.send('Hello world')
+
+})
 
 
 // Start server
